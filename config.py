@@ -4,6 +4,9 @@ import os
 ROOT = os.path.normpath(os.path.dirname(__file__))
 PORT = 8000
 
+# Define PIN driver
+PIN_DRIVER_IN1 = 24
+PIN_DRIVER_IN2 = 23
 
 # Define PIN output Servo
 PIN_SERVO_EGG_SPAR = 12
@@ -22,7 +25,7 @@ ONE_TIME_HIGH_RES_MODE = 0x20
 
 # Define condition lux light
 LUX_MIN = 500
-LUX_MAX = 1000
+LUX_MAX = 2000
 
 
 # Define delay time object detection

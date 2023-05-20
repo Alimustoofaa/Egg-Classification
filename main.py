@@ -1,3 +1,4 @@
+import io
 import os
 import cv2
 import time
@@ -8,21 +9,14 @@ import psutil as psu
 import numpy as np
 from PIL import Image
 import random
-
-from picamera.array import PiRGBArray
-from picamera import PiCamera
-
-try:
-	import cStringIO as io
-except ImportError:
-	import io
-
+	
 import asyncio
 import threading
-import webbrowser
 import tornado.web
 import tornado.websocket
 from tornado.ioloop import PeriodicCallback
+
+from src.process import main, start_stop_driver
 
 global frame
 frame = np.array([])
@@ -98,6 +92,7 @@ class WebServer(threading.Thread):
 	'''
 	Setup tornado serve
 	'''
+	print('Start Web Server')
 	def run(self):
 		asyncio.set_event_loop(asyncio.new_event_loop())
 		
@@ -118,29 +113,38 @@ class DeviceCamera(threading.Thread):
 	Setup input camera using device machine
 	Change resolution camera (high, medium, low)
 	'''
-
+	print('Start Process')
 	def run(self):		
-		
 		# initialize the camera and grab a reference to the raw camera capture
-		self.camera = PiCamera()
-		self.camera.resolution = (480,368)
-		self.camera.framerate = 15
-		rawCapture = PiRGBArray(self.camera, size=(480,368))
-		time.sleep(1)
+		# self.camera = PiCamera()
+		# self.camera.resolution = (480,368)
+		# self.camera.framerate = 15
+		# rawCapture = PiRGBArray(self.camera, size=(480,368))
+		# time.sleep(1)
 		
-		for frames in self.camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-			frame = frames.array
-			cv2.imwrite('test.jpg', frame)
-			rawCapture.truncate(0)
-			key = cv2.waitKey(1) & 0xFF
-			if key == ord("q"):
-				self.stop_camera()
-				break
+		# for frames in self.camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+		# 	frame = frames.array
+		# 	cv2.imwrite('test.jpg', frame)
+		# 	rawCapture.truncate(0)
+		# 	key = cv2.waitKey(1) & 0xFF
+		# 	if key == ord("q"):
+		# 		self.stop_camera()
+		# 		break
 
-		def stop_camera(self):
-			self.camera.stop_preview()
-			self.camera.close()
+		# def stop_camera(self):
+		# 	self.camera.stop_preview()
+		# 	self.camera.close()
+
+		# start conveyor
+		while True:
+			frame, classification = main()
+
+class DriverStart(threading.Thread):
+	print('Start Conveyor')
+	def run(self):
+		start_stop_driver()
 
 if __name__ == '__main__':
 	DeviceCamera().start()
 	WebServer().start()
+	DriverStart().start()
