@@ -5,8 +5,8 @@ ROOT = os.path.normpath(os.path.dirname(__file__))
 PORT = 8000
 
 # Define PIN driver
-PIN_DRIVER_IN1 = 24
-PIN_DRIVER_IN2 = 23
+PIN_DRIVER_IN1 = 22
+PIN_DRIVER_IN2 = 24
 
 # Define PIN output Servo
 PIN_SERVO_EGG_SPAR = 12
