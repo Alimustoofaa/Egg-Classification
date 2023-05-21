@@ -100,6 +100,8 @@ def main():
 	'''
 	global driver_start
 	frame, egg_quality = None, None
+	idle_in_process = False
+
 	# get intensity light
 	lux_light = get_intensity_light()
 	time.sleep(0.3)
@@ -107,67 +109,78 @@ def main():
 		print(f'Intensity light: {lux_light} LUX')
 		# object detection
 		detect_object = object_detection()
-		if detect_object:
-			print('Found Object')
-			
-			# stop conveyor
-			driver_start = False
-			print('Driver Stop')
-			time.sleep(DELAY_OBJECT_DETECTION)
-			print(f'Delay : {DELAY_OBJECT_DETECTION}')
+		while object_detection():
+			if not idle_in_process:
+				print('Found Object')
+				
+				# stop conveyor
+				driver_start = False
+				print('Driver Stop')
+				time.sleep(DELAY_OBJECT_DETECTION)
+				print(f'Delay : {DELAY_OBJECT_DETECTION}')
 
-			# capture camera
-			frame = capture_object()
-			print('Capture Object')
-			cv2.imwrite('capture.jpg', frame)
-			# classification egg quality
+				# capture camera
+				frame = capture_object()
+				print('Capture Object')
+				cv2.imwrite('capture.jpg', frame)
+				# classification egg quality
 
-			egg_quality, frame = 'infertile', frame
-			print(f'Processing EGG : {egg_quality}')
-			time.sleep(1)
-			print('Servo Emiter Start')
-			set_angle_servo(
-				angle = 100,
-				pin = PIN_SERVO_EMITTER,
-				pwm = pwm_emitter,
-			)
-			time.sleep(1)
-			# Detect Object to start Conveyor
-			print('Detect object')
-			detect_object = object_detection()
-			if not detect_object:
-				print(f'Object {detect_object}')
+				egg_quality, frame = 'infertile', frame
+				print(f'Processing EGG : {egg_quality}')
 				time.sleep(1)
-				print('Servo Emiter Reset')
-				reset_angel_servo(
+				print('Servo Emiter Start')
+				set_angle_servo(
 					angle = 100,
 					pin = PIN_SERVO_EMITTER,
 					pwm = pwm_emitter,
 				)
-				# start conveyor
-				print('Driver start')
-				driver_start = True
+				time.sleep(1)
+				# Detect Object to start Conveyor
+				print('Detect object')
+				# detect_object = object_detection()
+				
+				idle_in_process = True
 
-				if egg_quality == 'fertile':
-					angel_egg_spar = 50
-				else:
-					angel_egg_spar = 100
+				while True:
+					detect_object = object_detection()
+					if object_detection(): 
+						idle_in_process = False
+						break
+					print(f'Object not Found {detect_object}')
+					time.sleep(1)
+					print('Servo Emiter Reset')
+					reset_angel_servo(
+						angle = 100,
+						pin = PIN_SERVO_EMITTER,
+						pwm = pwm_emitter,
+					)
+					# start conveyor
+					print('Driver start')
+					driver_start = True
 
-				# rotate sparator 
-				print(f'Servo Sparator Start {angel_egg_spar}')
-				set_angle_servo(
-					angle = angel_egg_spar,
-					pin = PIN_SERVO_EGG_SPAR,
-					pwm = pwm_egg_spar,
-				)
-				time.sleep(2)
-				# reset servo sparator
-				print('Servo Sparator Reset')
-				reset_angel_servo(
-					angle = angel_egg_spar,
-					pin = PIN_SERVO_EGG_SPAR,
-					pwm = pwm_egg_spar,
-				)
+					if egg_quality == 'fertile':
+						angel_egg_spar = 50
+					else:
+						angel_egg_spar = 100
 
+					# rotate sparator 
+					print(f'Servo Sparator Start {angel_egg_spar}')
+					set_angle_servo(
+						angle = angel_egg_spar,
+						pin = PIN_SERVO_EGG_SPAR,
+						pwm = pwm_egg_spar,
+					)
+					time.sleep(2)
+					# reset servo sparator
+					print('Servo Sparator Reset')
+					reset_angel_servo(
+						angle = angel_egg_spar,
+						pin = PIN_SERVO_EGG_SPAR,
+						pwm = pwm_egg_spar,
+					)
+					print('===============================')
+					idle_in_process = False
+					break
+				break
 	
 	return frame, egg_quality
