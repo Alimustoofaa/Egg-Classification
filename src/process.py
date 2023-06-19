@@ -1,13 +1,14 @@
+import os
 import cv2
 import time
 import smbus
+import numpy as np
 import RPi.GPIO as GPIO
 from picamera import PiCamera
 from picamera.array import PiRGBArray
+from RaspberryMotors.motors import servos
 
-from .utils import convert_to_number,\
-				set_angle_servo, reset_angel_servo
-
+from .utils import convert_to_number
 from config import DEVICE, RESET,\
 				POWER_DOWN, POWER_ON,\
 				PIN_DRIVER_IN1, PIN_DRIVER_IN2,\
@@ -29,8 +30,8 @@ GPIO.setmode(GPIO.BOARD)
 
 # set behaviour of sensors
 GPIO.setup(PIN_IR_SENSOR,GPIO.IN) # ir sensor set input
-GPIO.setup(PIN_SERVO_EGG_SPAR, GPIO.OUT) # egg spar set output
-GPIO.setup(PIN_SERVO_EMITTER, GPIO.OUT) # emiter set output
+# GPIO.setup(PIN_SERVO_EGG_SPAR, GPIO.OUT) # egg spar set output
+# GPIO.setup(PIN_SERVO_EMITTER, GPIO.OUT) # emiter set output
 GPIO.setup(PIN_DRIVER_IN1,GPIO.OUT) # driver set output
 GPIO.setup(PIN_DRIVER_IN2,GPIO.OUT) # driver set output
 
@@ -38,31 +39,52 @@ GPIO.output(PIN_DRIVER_IN1,GPIO.LOW) # driver set to low/off
 GPIO.output(PIN_DRIVER_IN2,GPIO.LOW) # driver set to low/off
 
 # create pwm object
-pwm_egg_spar = GPIO.PWM(PIN_SERVO_EGG_SPAR, 50)
-pwm_egg_spar.start(0)
+# pwm_egg_spar = GPIO.PWM(PIN_SERVO_EGG_SPAR, 50)
+# pwm_egg_spar.start(0)
 
-pwm_emitter = GPIO.PWM(PIN_SERVO_EMITTER, 50)
-pwm_emitter.start(0)
+# pwm_emitter = GPIO.PWM(PIN_SERVO_EMITTER, 50)
+# pwm_emitter.start(0)
+servo_emitter = servos.servo(PIN_SERVO_EMITTER)
+servo_sparator = servos.servo(PIN_SERVO_EGG_SPAR)
 
 
 # initialize the camera
-camera = PiCamera()
-camera.resolution = (736,480)
-raw_capture = PiRGBArray(camera)
+# camera = PiCamera()
+# camera.resolution = (736,480)
+# raw_capture = PiRGBArray(camera)
+
+# set config
+os.system("v4l2-ctl -d /dev/video0 --set-ctrl=focus_automatic_continuous=0")
+os.system("v4l2-ctl -d /dev/video0 --set-ctrl=focus_absolute=130")
+# camera webcam
+camera = cv2.VideoCapture(0)
+camera.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+camera.set(3, 640)
+camera.set(4, 480)
 time.sleep(0.1)
 
 # initialize start driver
 driver_start = True
 
-def capture_object():
-	camera.capture(raw_capture, format="bgr")
-	frame = raw_capture.array
-	raw_capture.truncate(0)
+# def capture_object():
+# 	camera.capture(raw_capture, format="bgr")
+# 	frame = raw_capture.array
+# 	raw_capture.truncate(0)
+# 	return frame
+
+def capture_object_webcam():
+	frame = []
+	start_time = time.time()
+	while camera.isOpened():
+		ret, frame = camera.read();time.sleep(0.05)
+		if time.time()-start_time > 2:
+			break
 	return frame
 
 def stop_camera():
-	camera.stop_preview()
-	camera.close()
+	# camera.stop_preview()
+	# camera.close()
+	camera.release()
 
 def get_intensity_light():
 	data = BUS.read_i2c_block_data(
@@ -75,11 +97,15 @@ def object_detection():
 	return False if GPIO.input(PIN_IR_SENSOR) else True
 
 def start_stop_driver():
-	print(driver_start)
+	print("Driver Start")
 	while True:
 		if driver_start:
-			GPIO.output(PIN_DRIVER_IN1,GPIO.HIGH)
+			GPIO.output(PIN_DRIVER_IN1,GPIO.LOW)
+			GPIO.output(PIN_DRIVER_IN2,GPIO.HIGH)
+			time.sleep(0.009)
+			GPIO.output(PIN_DRIVER_IN1,GPIO.LOW)
 			GPIO.output(PIN_DRIVER_IN2,GPIO.LOW)
+			time.sleep(0.2)
 		else:
 			GPIO.output(PIN_DRIVER_IN1,GPIO.LOW)
 			GPIO.output(PIN_DRIVER_IN2,GPIO.LOW)
@@ -88,8 +114,13 @@ def start_stop_driver():
 def clean_up():
 	stop_camera()
 	GPIO.cleanup()
-	pwm_egg_spar.stop()
-	pwm_emitter.stop()
+	# pwm_egg_spar.stop()
+	# pwm_emitter.stop()
+	servo_emitter.shutdown()
+	servo_sparator.shutdown()
+
+servo_emiter_run = False
+frame = np.array([])
 
 def main():
 	'''
@@ -98,8 +129,8 @@ def main():
 	2. Objec detection
 		- detection object with infrared sensor
 	'''
-	global driver_start
-	frame, egg_quality = None, None
+	global driver_start, servo_emiter_run, frame
+	egg_quality =  None
 	idle_in_process = False
 
 	# get intensity light
@@ -120,7 +151,7 @@ def main():
 				print(f'Delay : {DELAY_OBJECT_DETECTION}')
 
 				# capture camera
-				frame = capture_object()
+				frame = capture_object_webcam()
 				print('Capture Object')
 				cv2.imwrite('capture.jpg', frame)
 				# classification egg quality
@@ -128,13 +159,13 @@ def main():
 				egg_quality, frame = 'infertile', frame
 				print(f'Processing EGG : {egg_quality}')
 				time.sleep(1)
-				print('Servo Emiter Start')
-				set_angle_servo(
-					angle = 100,
-					pin = PIN_SERVO_EMITTER,
-					pwm = pwm_emitter,
-				)
-				time.sleep(1)
+
+				# moving servo emitter
+				if not servo_emiter_run:
+					print('Servo Emiter Start')
+					servo_emitter.setAngleAndWait(30, 2)
+					servo_emiter_run = True
+
 				# Detect Object to start Conveyor
 				print('Detect object')
 				# detect_object = object_detection()
@@ -149,11 +180,7 @@ def main():
 					print(f'Object not Found {detect_object}')
 					time.sleep(1)
 					print('Servo Emiter Reset')
-					reset_angel_servo(
-						angle = 100,
-						pin = PIN_SERVO_EMITTER,
-						pwm = pwm_emitter,
-					)
+					servo_emitter.setAngleAndWait(0, 2)
 					# start conveyor
 					print('Driver start')
 					driver_start = True
@@ -165,19 +192,11 @@ def main():
 
 					# rotate sparator 
 					print(f'Servo Sparator Start {angel_egg_spar}')
-					set_angle_servo(
-						angle = angel_egg_spar,
-						pin = PIN_SERVO_EGG_SPAR,
-						pwm = pwm_egg_spar,
-					)
+					servo_sparator.setAngleAndWait(angel_egg_spar, 2)
 					time.sleep(2)
 					# reset servo sparator
 					print('Servo Sparator Reset')
-					reset_angel_servo(
-						angle = angel_egg_spar,
-						pin = PIN_SERVO_EGG_SPAR,
-						pwm = pwm_egg_spar,
-					)
+					servo_sparator.setAngleAndWait(0, 1)
 					print('===============================')
 					idle_in_process = False
 					break
