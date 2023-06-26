@@ -24,7 +24,7 @@ RESET      = 0x07 # Reset data register value
 ONE_TIME_HIGH_RES_MODE = 0x20
 
 # Define condition lux light
-LUX_MIN = 500
+LUX_MIN = 10
 LUX_MAX = 2000
 
 

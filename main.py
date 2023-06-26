@@ -3,7 +3,6 @@ import os
 import cv2
 import time
 import base64
-import argparse
 from config import *
 import psutil as psu
 import numpy as np
@@ -17,9 +16,6 @@ import tornado.websocket
 from tornado.ioloop import PeriodicCallback
 
 from src.process import main, start_stop_driver
-
-global frame
-frame = np.array([])
 
 class IndexHandler(tornado.web.RequestHandler):
 	'''
@@ -54,24 +50,21 @@ class WebSocket(tornado.websocket.WebSocketHandler):
 		'''
 		Send camera image in infinite loop
 		'''
+		from src.process import frame , fertil, infertil
 		sio = io.BytesIO()
-		global frame
+
 		if frame is None: frame = np.array([])
 		if not frame is None and frame.dtype == 'uint8':
-			# ret, frame = camera.read()
 			img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 			img.save(sio, "JPEG")
 		else:
-			DeviceCamera().start()
-			camera = cv2.VideoCapture(CAMERA_URL['url'][0])
-		# else:
-			# camera.capture(sio, "jpeg", use_video_port=True)
+			pass
 		
 		try:
 			await self.write_message({
 				"image": base64.b64encode(sio.getvalue()).decode('utf-8'),
-				"infertil" : random.randint(1,9),
-				"fertil": random.randint(1,9)
+				"infertil" : infertil,
+				"fertil": fertil
 				})
 		except tornado.iostream.StreamClosedError as e:
 			print('StreamClosedError:', e)
@@ -105,7 +98,7 @@ class WebServer(threading.Thread):
 					(r'/static/(.*)', tornado.web.StaticFileHandler, {'path': ROOT+'/assets'})]
 		application = tornado.web.Application(handlers, cookies_secret=PASSWORD)
 		application.listen(PORT)
-		# webbrowser.open(f'http://127.0.0.1:{PORT}', new=2)
+		print(f'http://127.0.0.1:{PORT}')
 		tornado.ioloop.IOLoop.instance().start()
 
 class DeviceCamera(threading.Thread):
@@ -114,30 +107,16 @@ class DeviceCamera(threading.Thread):
 	Change resolution camera (high, medium, low)
 	'''
 	print('Start Process')
-	def run(self):		
-		# initialize the camera and grab a reference to the raw camera capture
-		# self.camera = PiCamera()
-		# self.camera.resolution = (480,368)
-		# self.camera.framerate = 15
-		# rawCapture = PiRGBArray(self.camera, size=(480,368))
-		# time.sleep(1)
-		
-		# for frames in self.camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-		# 	frame = frames.array
-		# 	cv2.imwrite('test.jpg', frame)
-		# 	rawCapture.truncate(0)
-		# 	key = cv2.waitKey(1) & 0xFF
-		# 	if key == ord("q"):
-		# 		self.stop_camera()
-		# 		break
-
-		# def stop_camera(self):
-		# 	self.camera.stop_preview()
-		# 	self.camera.close()
-
+	def run(self):
+		global frame
 		# start conveyor
 		while True:
-			frame, classification = main()
+			try:
+				_, classification = main()
+			except Exception as e:
+				print(e)
+				break
+	
 
 class DriverStart(threading.Thread):
 	print('Start Conveyor')
@@ -145,6 +124,6 @@ class DriverStart(threading.Thread):
 		start_stop_driver()
 
 if __name__ == '__main__':
+	DriverStart().start()
 	DeviceCamera().start()
 	WebServer().start()
-	DriverStart().start()
