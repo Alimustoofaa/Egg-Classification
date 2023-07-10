@@ -1,6 +1,8 @@
 import platform
 import os
 
+SECOND_METODE = True
+
 ROOT = os.path.normpath(os.path.dirname(__file__))
 PORT = 8000
 
