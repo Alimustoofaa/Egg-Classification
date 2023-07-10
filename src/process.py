@@ -57,6 +57,7 @@ BUS = smbus.SMBus(1)
 print('Read Camera')
 camera = PiCamera()
 camera.resolution = (736,480)
+#camera.shutter_speed = 10000
 raw_capture = PiRGBArray(camera)
 
 # # set config
@@ -110,10 +111,10 @@ def start_stop_driver():
 		if driver_start:
 			GPIO.output(PIN_DRIVER_IN1,GPIO.LOW)
 			GPIO.output(PIN_DRIVER_IN2,GPIO.HIGH)
-			time.sleep(0.009)
+			time.sleep(0.005)
 			GPIO.output(PIN_DRIVER_IN1,GPIO.LOW)
 			GPIO.output(PIN_DRIVER_IN2,GPIO.LOW)
-			time.sleep(0.2)
+			time.sleep(0.3)
 		else:
 			GPIO.output(PIN_DRIVER_IN1,GPIO.LOW)
 			GPIO.output(PIN_DRIVER_IN2,GPIO.LOW)
@@ -143,14 +144,18 @@ def main():
 	egg_quality =  None
 	idle_in_process = False
 
-	# get intensity light
-	lux_light = get_intensity_light()
+
 	time.sleep(0.3)
-	if lux_light in range(LUX_MIN, LUX_MAX+1):
-		print(f'Intensity light: {lux_light} LUX')
-		# object detection
-		detect_object = object_detection()
-		while object_detection():
+	if object_detection():
+		print('Found Object')
+		# get intensity light
+		lux_light = get_intensity_light()
+		print(f'light : {lux_light}')
+		while lux_light in range(LUX_MIN, LUX_MAX+1):
+			print(f'Intensity light: {lux_light} LUX')
+		# # object detection
+		# detect_object = object_detection()
+		# while object_detection():
 			if not idle_in_process:
 				print('Found Object')
 				
@@ -163,7 +168,9 @@ def main():
 				# capture camera
 				frame_cap = capture_object()
 				print('Capture Object')
-				cv2.imwrite('capture.jpg', frame_cap)
+				if not len(frame_cap) > 0:
+					print('Camera Error')
+				save_image = cv2.imwrite('capture.jpg', frame_cap)
 				# classification egg quality
 				frame, egg_quality = main_process(frame_cap)
 				if egg_quality == 'infertil':
@@ -192,7 +199,7 @@ def main():
 						idle_in_process = False
 						break
 					print(f'Object not Found {detect_object}')
-					time.sleep(1)
+					time.sleep(3)
 					print('Servo Emiter Reset')
 					servo_emitter.setAngleAndWait(30, 1)
 					# start conveyor
@@ -207,7 +214,7 @@ def main():
 					# rotate sparator 
 					print(f'Servo Sparator Start {angel_egg_spar}')
 					servo_sparator.setAngleAndWait(angel_egg_spar, 2)
-					time.sleep(10)
+					time.sleep(40)
 					# reset servo sparator
 					print('Servo Sparator Reset')
 					servo_sparator.setAngleAndWait(40, 1)
